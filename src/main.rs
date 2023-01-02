@@ -2,8 +2,7 @@ use std::env;
 use std::thread;
 use std::time::Duration;
 
-const MARK: [&str; 4] = ["-", "\\", "|", "/"];
-const NUMBER: [[i32; 15]; 10] = [
+const NUMBER: [[u8; 15]; 10] = [
     [1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1],
     [0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1],
     [1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1],
@@ -15,23 +14,30 @@ const NUMBER: [[i32; 15]; 10] = [
     [1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1],
     [1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1],
 ];
+const COLON: [u8; 15] = [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0];
 
 #[derive(Debug)]
 struct Displaytime {
     second: i32,
     minute: i32,
     hour: i32,
-    second_str: String,
-    minute_str: String,
-    hour_str: String,
+    ten_second: i32,
+    ten_minute: i32,
+    ten_hour: i32,
+    one_second: i32,
+    one_minute: i32,
+    one_hour: i32,
 }
 
 impl Displaytime {
     fn display(&self) {
-        let pos = self.second as usize % MARK.len();
-        eprint!(
-            "{} {}:{}:{}\r",
-            MARK[pos], self.hour_str, self.minute_str, self.second_str
+        draw_number(
+            self.ten_hour,
+            self.one_hour,
+            self.ten_minute,
+            self.one_minute,
+            self.ten_second,
+            self.one_second,
         );
     }
 
@@ -49,26 +55,31 @@ impl Displaytime {
         }
     }
 
-    fn shaping_str(&mut self) {
+    fn shaping_time(&mut self) {
         // second string shaping
         if self.second <= 9 {
-            self.second_str = "0".to_string() + &self.second.to_string();
+            self.ten_second = 0;
+            self.one_second = self.second % 10;
         } else {
-            self.second_str = self.second.to_string();
+            self.ten_second = self.second / 10;
+            self.one_second = self.second % 10;
         }
-
         // minute string shaping
         if self.minute <= 9 {
-            self.minute_str = "0".to_string() + &self.minute.to_string();
+            self.ten_minute = 0;
+            self.one_minute = self.minute % 10;
         } else {
-            self.minute_str = self.minute.to_string();
+            self.ten_minute = self.minute / 10;
+            self.one_minute = self.minute % 10;
         }
 
         // hour string shaping
         if self.hour <= 9 {
-            self.hour_str = "0".to_string() + &self.hour.to_string();
+            self.ten_hour = 0;
+            self.one_hour = self.hour % 10;
         } else {
-            self.hour_str = self.hour.to_string();
+            self.ten_hour = self.hour / 10;
+            self.one_hour = self.hour % 10;
         }
     }
 
@@ -136,16 +147,19 @@ fn stopwatch_disp() {
         second: 0,
         minute: 0,
         hour: 0,
-        second_str: "00".to_string(),
-        minute_str: "00".to_string(),
-        hour_str: "00".to_string(),
+        ten_second: 0,
+        ten_minute: 0,
+        ten_hour: 0,
+        one_second: 0,
+        one_minute: 0,
+        one_hour: 0,
     };
     let du = Duration::new(1, 0);
     loop {
         timedisp.display();
         thread::sleep(du);
         timedisp.inclement_time();
-        timedisp.shaping_str();
+        timedisp.shaping_time();
     }
 }
 
@@ -157,13 +171,16 @@ fn timer_disp(mut m: u32) {
         second: 0,
         minute: m as i32,
         hour: h as i32,
-        second_str: "00".to_string(),
-        minute_str: "00".to_string(),
-        hour_str: "00".to_string(),
+        ten_second: 0,
+        ten_minute: 0,
+        ten_hour: 0,
+        one_second: 0,
+        one_minute: 0,
+        one_hour: 0,
     };
     let du = Duration::new(1, 0);
     loop {
-        timedisp.shaping_str();
+        timedisp.shaping_time();
         timedisp.display();
         thread::sleep(du);
         if timedisp.declement_time() {
@@ -171,6 +188,100 @@ fn timer_disp(mut m: u32) {
         }
     }
     println!("!!! finish !!!");
+}
+
+fn create_line(start: usize, end: usize, mut line: String, target_num: usize) -> String {
+    for i in start..end {
+        let s: String;
+        if NUMBER[target_num][i] == 1 {
+            s = format!("\x1b[42m\x1b[32m{}\x1b[0m", NUMBER[target_num][i])
+        } else {
+            s = format!("\x1b[40m\x1b[30m{}\x1b[0m", NUMBER[target_num][i])
+        }
+        line = line + &s;
+    }
+    line = line + " ";
+    line
+}
+
+fn create_colon(start: usize, end: usize, mut line: String) -> String {
+    for i in start..end {
+        let s: String;
+        if COLON[i] == 1 {
+            s = format!("\x1b[42m\x1b[32m{}\x1b[0m", COLON[i])
+        } else {
+            s = format!("\x1b[40m\x1b[30m{}\x1b[0m", COLON[i])
+        }
+        line = line + &s;
+    }
+    line = line + " ";
+    line
+}
+
+fn draw_number(
+    ten_hour: i32,
+    one_hour: i32,
+    ten_minute: i32,
+    one_minute: i32,
+    ten_second: i32,
+    one_second: i32,
+) {
+    let mut line = String::new();
+    line = line + " ";
+
+    // line1
+    line = create_line(0, 3, line, ten_hour as usize);
+    line = create_line(0, 3, line, one_hour as usize);
+    line = create_colon(0, 3, line);
+    line = create_line(0, 3, line, ten_minute as usize);
+    line = create_line(0, 3, line, one_minute as usize);
+    line = create_colon(0, 3, line);
+    line = create_line(0, 3, line, ten_second as usize);
+    line = create_line(0, 3, line, one_second as usize);
+    line = line + "\n ";
+    // line2
+    line = create_line(3, 6, line, ten_hour as usize);
+    line = create_line(3, 6, line, one_hour as usize);
+    line = create_colon(3, 6, line);
+    line = create_line(3, 6, line, ten_minute as usize);
+    line = create_line(3, 6, line, one_minute as usize);
+    line = create_colon(3, 6, line);
+    line = create_line(3, 6, line, ten_second as usize);
+    line = create_line(3, 6, line, one_second as usize);
+    line = line + "\n ";
+    // line3
+    line = create_line(6, 9, line, ten_hour as usize);
+    line = create_line(6, 9, line, one_hour as usize);
+    line = create_colon(6, 9, line);
+    line = create_line(6, 9, line, ten_minute as usize);
+    line = create_line(6, 9, line, one_minute as usize);
+    line = create_colon(6, 9, line);
+    line = create_line(6, 9, line, ten_second as usize);
+    line = create_line(6, 9, line, one_second as usize);
+    line = line + "\n ";
+    // line4
+    line = create_line(9, 12, line, ten_hour as usize);
+    line = create_line(9, 12, line, one_hour as usize);
+    line = create_colon(9, 12, line);
+    line = create_line(9, 12, line, ten_minute as usize);
+    line = create_line(9, 12, line, one_minute as usize);
+    line = create_colon(9, 12, line);
+    line = create_line(9, 12, line, ten_second as usize);
+    line = create_line(9, 12, line, one_second as usize);
+    line = line + "\n ";
+    // line5
+    line = create_line(12, 15, line, ten_hour as usize);
+    line = create_line(12, 15, line, one_hour as usize);
+    line = create_colon(12, 15, line);
+    line = create_line(12, 15, line, ten_minute as usize);
+    line = create_line(12, 15, line, one_minute as usize);
+    line = create_colon(12, 15, line);
+    line = create_line(12, 15, line, ten_second as usize);
+    line = create_line(12, 15, line, one_second as usize);
+    line = line + "\n ";
+
+    eprint!("{}", line);
+    eprint!("\x1b[16D\x1b[5A");
 }
 
 fn main() {
